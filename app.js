@@ -663,36 +663,642 @@ function openModal(id) { const m = $(id); m.classList.add('open'); m.setAttribut
 function closeModal(id) { const m = $(id); m.classList.remove('open'); m.setAttribute('aria-hidden','true'); }
 
 function wireUI() {
-  $('create-room-button').addEventListener('click', () => { $('host-name').value = getIdentity(); showScreen('create'); });
-  $('join-room-button').addEventListener('click', () => { $('guest-name').value = getIdentity(); showScreen('join'); });
-  $('[data-nav="home"]').addEventListener('click', e => { e.preventDefault(); clearRoomState(); showScreen('home'); });
-  qs('[data-back]').forEach(btn => btn.addEventListener('click', () => showScreen(btn.dataset.back)));
-  $('create-confirm').addEventListener('click', () => APP_STATE.mode === 'online' ? createRoomOnline() : createDemoRoom());
-  $('join-confirm').addEventListener('click', () => APP_STATE.mode === 'online' ? joinRoomOnline() : joinDemoRoom());
-  $('paste-code').addEventListener('click', async () => { try { $('room-code').value = (await navigator.clipboard.readText()).trim().slice(0,6).toUpperCase(); } catch { toast('Clipboard access is blocked here. Paste manually.'); } });
-  $('copy-room-code').addEventListener('click', async () => { try { await navigator.clipboard.writeText(APP_STATE.roomCode); toast('Room code copied.'); } catch { toast(`Room code: ${APP_STATE.roomCode}`); } });
-  $('share-room').addEventListener('click', shareRoom);
-  $('host-start-button').addEventListener('click', () => APP_STATE.mode === 'online' ? startGameOnline() : demoStartGame());
-  $('submit-answer').addEventListener('click', () => APP_STATE.mode === 'online' ? submitAnswer() : demoReveal());
-  $('skip-question').addEventListener('click', () => APP_STATE.mode === 'online' ? skipQuestionOnline() : demoSkip());
-  $('next-question').addEventListener('click', () => APP_STATE.mode === 'online' ? nextQuestionOnline() : demoNext());
-  $('play-again').addEventListener('click', () => { clearRoomState(); $('host-name').value = getIdentity(); showScreen('create'); });
-  $('leave-room').addEventListener('click', () => { clearRoomState(); showScreen('home'); });
-  $('settings-button').addEventListener('click', () => openModal('settings-modal'));
-  $('game-settings-button').addEventListener('click', () => openModal('settings-modal'));
-  $('custom-question-button').addEventListener('click', () => openModal('custom-question-modal'));
-  $('save-custom-question').addEventListener('click', () => { const text = $('custom-question-input').value.trim(); if (!text) return toast('Write a question first.'); APP_STATE.mode === 'online' ? addCustomQuestionOnline(text) : (closeModal('custom-question-modal'), APP_STATE.room.customQuestions.push({id:`custom-${Date.now()}`,text,category:'Custom',difficulty:'medium'}), toast('Custom question added to the demo.', '✦')); $('custom-question-input').value=''; });
-  $('share-results').addEventListener('click', shareResults);
-  $('favorite-answer').addEventListener('click', () => { const id = APP_STATE.question?.id; if (!id) return; const saved = JSON.parse(localStorage.getItem('wks-saved') || '[]'); if (!saved.includes(id)) saved.push(id); localStorage.setItem('wks-saved', JSON.stringify(saved)); $('favorite-answer').textContent='★ Saved'; toast('Question saved.'); });
-  qs('[data-close-modal]').forEach(btn => btn.addEventListener('click', () => closeModal(btn.dataset.closeModal)));
-  qs('.modal-backdrop').forEach(backdrop => backdrop.addEventListener('click', e => { if (e.target === backdrop && backdrop.id !== 'toast-layer') closeModal(backdrop.id); }));
-  qs('.switch[data-setting]').forEach(toggle => toggle.addEventListener('click', () => { const key = toggle.dataset.setting; if (key in APP_STATE.settings) { APP_STATE.settings[key] = !APP_STATE.settings[key]; saveSettings(); playTone('tap'); } }));
-  qs('.theme-chip').forEach(chip => chip.addEventListener('click', () => { APP_STATE.settings.theme = chip.dataset.theme; saveSettings(); playTone('tap'); }));
-  $('answer-input').addEventListener('input', () => { $('char-count').textContent = `${$('answer-input').value.length} / 240`; });
-  $('answer-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('submit-answer').click(); } });
-  $('room-code').addEventListener('input', e => { e.target.value = e.target.value.replace(/[^a-z0-9]/gi,'').slice(0,6).toUpperCase(); });
-  qs('.reaction-row button').forEach(button => button.addEventListener('click', async () => { qs('.reaction-row button').forEach(b=>b.classList.remove('selected')); button.classList.add('selected'); const emoji=button.dataset.reaction; APP_STATE.currentReaction=emoji; APP_STATE.mode==='online' ? await saveReactionOnline(emoji) : toast('Reaction sent.', emoji); playTone('tap'); }));
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') qs('.modal-backdrop.open').forEach(m=>closeModal(m.id)); if (document.activeElement?.tagName === 'TEXTAREA') return; if ((e.key==='s'||e.key==='S') && $('screen-game').classList.contains('active')) $('skip-question').click(); });
+  // ------------------------------------------------------------
+  // Safe event helpers
+  // ------------------------------------------------------------
+
+  const on = (id, event, handler) => {
+    const element = $(id);
+
+    if (!element) {
+      console.warn(`[WKS] Missing element #${id}`);
+      return;
+    }
+
+    element.addEventListener(event, handler);
+  };
+
+  const onSelector = (selector, event, handler) => {
+    const elements = qs(selector);
+
+    if (!elements.length) {
+      console.warn(`[WKS] No elements found for "${selector}"`);
+      return;
+    }
+
+    elements.forEach(element => {
+      element.addEventListener(event, handler);
+    });
+  };
+
+  // ------------------------------------------------------------
+  // HOME
+  // ------------------------------------------------------------
+
+  on('create-room-button', 'click', () => {
+    const hostName = $('host-name');
+
+    if (hostName) {
+      hostName.value = getIdentity();
+    }
+
+    showScreen('create');
+  });
+
+  on('join-room-button', 'click', () => {
+    const guestName = $('guest-name');
+
+    if (guestName) {
+      guestName.value = getIdentity();
+    }
+
+    showScreen('join');
+  });
+
+  // IMPORTANT:
+  // This used to incorrectly use $() for a CSS selector.
+  // $() is for IDs, while qs() is for selectors.
+  onSelector('[data-nav="home"]', 'click', e => {
+    e.preventDefault();
+
+    clearRoomState();
+    showScreen('home');
+  });
+
+  // ------------------------------------------------------------
+  // BACK BUTTONS
+  // ------------------------------------------------------------
+
+  onSelector('[data-back]', 'click', button => {
+    const targetScreen = button.dataset.back;
+
+    if (!targetScreen) {
+      console.warn('[WKS] Back button is missing data-back');
+      return;
+    }
+
+    showScreen(targetScreen);
+  });
+
+  // ------------------------------------------------------------
+  // CREATE / JOIN ROOM
+  // ------------------------------------------------------------
+
+  on('create-confirm', 'click', () => {
+    const button = $('create-confirm');
+
+    if (button) {
+      button.disabled = true;
+      button.classList.add('is-loading');
+    }
+
+    const action =
+      APP_STATE.mode === 'online'
+        ? createRoomOnline()
+        : createDemoRoom();
+
+    // Re-enable button if the function doesn't navigate away.
+    Promise.resolve(action)
+      .catch(error => {
+        console.error('[WKS] Create room failed:', error);
+        toast('Could not create the room. Please try again.', '⚠');
+      })
+      .finally(() => {
+        setTimeout(() => {
+          if (button) {
+            button.disabled = false;
+            button.classList.remove('is-loading');
+          }
+        }, 500);
+      });
+  });
+
+  on('join-confirm', 'click', () => {
+    const button = $('join-confirm');
+
+    if (button) {
+      button.disabled = true;
+      button.classList.add('is-loading');
+    }
+
+    const action =
+      APP_STATE.mode === 'online'
+        ? joinRoomOnline()
+        : joinDemoRoom();
+
+    Promise.resolve(action)
+      .catch(error => {
+        console.error('[WKS] Join room failed:', error);
+        toast('Could not join the room. Check the code and try again.', '⚠');
+      })
+      .finally(() => {
+        setTimeout(() => {
+          if (button) {
+            button.disabled = false;
+            button.classList.remove('is-loading');
+          }
+        }, 500);
+      });
+  });
+
+  // ------------------------------------------------------------
+  // ROOM CODE
+  // ------------------------------------------------------------
+
+  on('paste-code', 'click', async () => {
+    const input = $('room-code');
+
+    if (!input) return;
+
+    try {
+      const clipboardText = await navigator.clipboard.readText();
+
+      input.value = clipboardText
+        .trim()
+        .replace(/[^a-z0-9]/gi, '')
+        .slice(0, 6)
+        .toUpperCase();
+
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    } catch (error) {
+      console.warn('[WKS] Clipboard read failed:', error);
+      toast('Clipboard access is blocked here. Paste the code manually.', '⚠');
+    }
+  });
+
+  on('room-code', 'input', e => {
+    e.target.value = e.target.value
+      .replace(/[^a-z0-9]/gi, '')
+      .slice(0, 6)
+      .toUpperCase();
+  });
+
+  on('copy-room-code', 'click', async () => {
+    if (!APP_STATE.roomCode) {
+      toast('There is no room code yet.', '⚠');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(APP_STATE.roomCode);
+      toast('Room code copied.', '✦');
+    } catch (error) {
+      console.warn('[WKS] Clipboard write failed:', error);
+      toast(`Room code: ${APP_STATE.roomCode}`, '✦');
+    }
+  });
+
+  on('share-room', 'click', async () => {
+    try {
+      await shareRoom();
+    } catch (error) {
+      console.error('[WKS] Share room failed:', error);
+      toast('Could not open sharing. You can copy the room code instead.', '⚠');
+    }
+  });
+
+  // ------------------------------------------------------------
+  // HOST START
+  // ------------------------------------------------------------
+
+  on('host-start-button', 'click', async () => {
+    try {
+      if (APP_STATE.mode === 'online') {
+        await startGameOnline();
+      } else {
+        await demoStartGame();
+      }
+    } catch (error) {
+      console.error('[WKS] Start game failed:', error);
+      toast('Could not start the game.', '⚠');
+    }
+  });
+
+  // ------------------------------------------------------------
+  // ANSWERS
+  // ------------------------------------------------------------
+
+  on('submit-answer', 'click', async () => {
+    const input = $('answer-input');
+
+    if (input) {
+      const answer = input.value.trim();
+
+      if (!answer) {
+        toast('Write an answer first.', '✦');
+        input.focus();
+        return;
+      }
+    }
+
+    try {
+      if (APP_STATE.mode === 'online') {
+        await submitAnswer();
+      } else {
+        await demoReveal();
+      }
+    } catch (error) {
+      console.error('[WKS] Submit answer failed:', error);
+      toast('Could not submit your answer. Try again.', '⚠');
+    }
+  });
+
+  // ------------------------------------------------------------
+  // SKIP QUESTION
+  // ------------------------------------------------------------
+
+  on('skip-question', 'click', async () => {
+    try {
+      if (APP_STATE.mode === 'online') {
+        await skipQuestionOnline();
+      } else {
+        await demoSkip();
+      }
+    } catch (error) {
+      console.error('[WKS] Skip question failed:', error);
+      toast('Could not skip this question.', '⚠');
+    }
+  });
+
+  // ------------------------------------------------------------
+  // NEXT QUESTION
+  // ------------------------------------------------------------
+
+  on('next-question', 'click', async () => {
+    try {
+      if (APP_STATE.mode === 'online') {
+        await nextQuestionOnline();
+      } else {
+        await demoNext();
+      }
+    } catch (error) {
+      console.error('[WKS] Next question failed:', error);
+      toast('Could not load the next question.', '⚠');
+    }
+  });
+
+  // ------------------------------------------------------------
+  // PLAY AGAIN
+  // ------------------------------------------------------------
+
+  on('play-again', 'click', () => {
+    clearRoomState();
+
+    const hostName = $('host-name');
+
+    if (hostName) {
+      hostName.value = getIdentity();
+    }
+
+    showScreen('create');
+  });
+
+  // ------------------------------------------------------------
+  // LEAVE ROOM
+  // ------------------------------------------------------------
+
+  on('leave-room', 'click', () => {
+    clearRoomState();
+    showScreen('home');
+  });
+
+  // ------------------------------------------------------------
+  // SETTINGS
+  // ------------------------------------------------------------
+
+  on('settings-button', 'click', () => {
+    openModal('settings-modal');
+  });
+
+  on('game-settings-button', 'click', () => {
+    openModal('settings-modal');
+  });
+
+  // ------------------------------------------------------------
+  // CUSTOM QUESTIONS
+  // ------------------------------------------------------------
+
+  on('custom-question-button', 'click', () => {
+    openModal('custom-question-modal');
+  });
+
+  on('save-custom-question', 'click', async () => {
+    const input = $('custom-question-input');
+
+    if (!input) {
+      console.warn('[WKS] Missing custom question input');
+      return;
+    }
+
+    const text = input.value.trim();
+
+    if (!text) {
+      toast('Write a question first.', '⚠');
+      input.focus();
+      return;
+    }
+
+    if (text.length < 5) {
+      toast('Make the question a little longer.', '⚠');
+      input.focus();
+      return;
+    }
+
+    if (text.length > 240) {
+      toast('Keep the question under 240 characters.', '⚠');
+      input.focus();
+      return;
+    }
+
+    try {
+      if (APP_STATE.mode === 'online') {
+        await addCustomQuestionOnline(text);
+      } else {
+        if (!APP_STATE.room) {
+          APP_STATE.room = {};
+        }
+
+        if (!Array.isArray(APP_STATE.room.customQuestions)) {
+          APP_STATE.room.customQuestions = [];
+        }
+
+        APP_STATE.room.customQuestions.push({
+          id: `custom-${Date.now()}`,
+          text,
+          category: 'Custom',
+          difficulty: 'medium'
+        });
+
+        closeModal('custom-question-modal');
+
+        toast('Custom question added.', '✦');
+      }
+
+      input.value = '';
+    } catch (error) {
+      console.error('[WKS] Custom question failed:', error);
+      toast('Could not add the question.', '⚠');
+    }
+  });
+
+  // ------------------------------------------------------------
+  // SHARE RESULTS
+  // ------------------------------------------------------------
+
+  on('share-results', 'click', async () => {
+    try {
+      await shareResults();
+    } catch (error) {
+      console.error('[WKS] Share results failed:', error);
+      toast('Could not open sharing.', '⚠');
+    }
+  });
+
+  // ------------------------------------------------------------
+  // FAVORITE ANSWER / QUESTION
+  // ------------------------------------------------------------
+
+  on('favorite-answer', 'click', () => {
+    const questionId = APP_STATE.question?.id;
+
+    if (!questionId) {
+      toast('There is nothing to save yet.', '⚠');
+      return;
+    }
+
+    let saved = [];
+
+    try {
+      saved = JSON.parse(
+        localStorage.getItem('wks-saved') || '[]'
+      );
+
+      if (!Array.isArray(saved)) {
+        saved = [];
+      }
+    } catch {
+      saved = [];
+    }
+
+    if (!saved.includes(questionId)) {
+      saved.push(questionId);
+
+      localStorage.setItem(
+        'wks-saved',
+        JSON.stringify(saved)
+      );
+
+      const favoriteButton = $('favorite-answer');
+
+      if (favoriteButton) {
+        favoriteButton.textContent = '★ Saved';
+        favoriteButton.classList.add('saved');
+      }
+
+      toast('Question saved.', '★');
+    } else {
+      toast('Already saved.', '★');
+    }
+  });
+
+  // ------------------------------------------------------------
+  // MODAL CLOSE BUTTONS
+  // ------------------------------------------------------------
+
+  onSelector('[data-close-modal]', 'click', button => {
+    const modalId = button.dataset.closeModal;
+
+    if (!modalId) return;
+
+    closeModal(modalId);
+  });
+
+  // Clicking outside a modal closes it
+  onSelector('.modal-backdrop', 'click', event => {
+    const backdrop = event.currentTarget;
+
+    if (
+      event.target === backdrop &&
+      backdrop.id !== 'toast-layer'
+    ) {
+      closeModal(backdrop.id);
+    }
+  });
+
+  // ------------------------------------------------------------
+  // SETTINGS TOGGLES
+  // ------------------------------------------------------------
+
+  onSelector('.switch[data-setting]', 'click', toggle => {
+    const key = toggle.dataset.setting;
+
+    if (!key || !(key in APP_STATE.settings)) {
+      console.warn(`[WKS] Unknown setting: ${key}`);
+      return;
+    }
+
+    APP_STATE.settings[key] = !APP_STATE.settings[key];
+
+    saveSettings();
+
+    toggle.setAttribute(
+      'aria-checked',
+      String(APP_STATE.settings[key])
+    );
+
+    toggle.classList.toggle(
+      'active',
+      APP_STATE.settings[key]
+    );
+
+    playTone('tap');
+  });
+
+  // ------------------------------------------------------------
+  // THEME BUTTONS
+  // ------------------------------------------------------------
+
+  onSelector('.theme-chip', 'click', chip => {
+    const theme = chip.dataset.theme;
+
+    if (!theme) return;
+
+    APP_STATE.settings.theme = theme;
+
+    saveSettings();
+
+    onSelector('.theme-chip', 'click', () => {});
+
+    qs('.theme-chip').forEach(item => {
+      item.classList.toggle(
+        'active',
+        item.dataset.theme === theme
+      );
+    });
+
+    playTone('tap');
+  });
+
+  // ------------------------------------------------------------
+  // ANSWER INPUT
+  // ------------------------------------------------------------
+
+  on('answer-input', 'input', event => {
+    const counter = $('char-count');
+
+    if (!counter) return;
+
+    counter.textContent =
+      `${event.target.value.length} / 240`;
+  });
+
+  on('answer-input', 'keydown', event => {
+    if (
+      event.key === 'Enter' &&
+      !event.shiftKey
+    ) {
+      event.preventDefault();
+
+      const submitButton = $('submit-answer');
+
+      if (submitButton && !submitButton.disabled) {
+        submitButton.click();
+      }
+    }
+  });
+
+  // ------------------------------------------------------------
+  // REACTIONS
+  // ------------------------------------------------------------
+
+  onSelector('.reaction-row button', 'click', async button => {
+    qs('.reaction-row button').forEach(
+      b => b.classList.remove('selected')
+    );
+
+    button.classList.add('selected');
+
+    const emoji = button.dataset.reaction;
+
+    if (!emoji) return;
+
+    APP_STATE.currentReaction = emoji;
+
+    try {
+      if (APP_STATE.mode === 'online') {
+        await saveReactionOnline(emoji);
+      } else {
+        toast('Reaction sent.', emoji);
+      }
+    } catch (error) {
+      console.error('[WKS] Reaction failed:', error);
+      toast('Could not send reaction.', '⚠');
+    }
+
+    playTone('tap');
+  });
+
+  // ------------------------------------------------------------
+  // GLOBAL KEYBOARD SHORTCUTS
+  // ------------------------------------------------------------
+
+  document.addEventListener('keydown', event => {
+    // Escape closes open modals
+    if (event.key === 'Escape') {
+      qs('.modal-backdrop.open').forEach(
+        modal => closeModal(modal.id)
+      );
+      return;
+    }
+
+    // Don't trigger shortcuts while typing
+    const activeElement = document.activeElement;
+
+    if (
+      activeElement &&
+      (
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.tagName === 'INPUT'
+      )
+    ) {
+      return;
+    }
+
+    // S = skip current question
+    if (
+      (event.key === 's' || event.key === 'S') &&
+      $('screen-game')?.classList.contains('active')
+    ) {
+      const skipButton = $('skip-question');
+
+      if (skipButton && !skipButton.disabled) {
+        skipButton.click();
+      }
+    }
+  });
+
+  // ------------------------------------------------------------
+  // INITIAL UI STATE
+  // ------------------------------------------------------------
+
+  try {
+    const identity = getIdentity();
+
+    const hostName = $('host-name');
+    const guestName = $('guest-name');
+
+    if (hostName && !hostName.value) {
+      hostName.value = identity;
+    }
+
+    if (guestName && !guestName.value) {
+      guestName.value = identity;
+    }
+  } catch (error) {
+    console.warn('[WKS] Could not initialize identity:', error);
+  }
+
+  console.log('[WKS] UI wired successfully.');
 }
 
 function joinDemoRoom() {
