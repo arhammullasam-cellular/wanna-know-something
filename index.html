@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="description" content="Wanna Know Something... — a two-player question game for the things you never thought to ask." />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Wanna Know Something...</title>
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <div class="ambient" aria-hidden="true">
+    <span class="orb orb-a"></span>
+    <span class="orb orb-b"></span>
+    <span class="orb orb-c"></span>
+    <div id="pixel-field"></div>
+    <div class="scanlines"></div>
+  </div>
+
+  <header class="topbar">
+    <a class="brand" href="#" data-nav="home" aria-label="Wanna Know Something home">
+      <span class="brand-mark" aria-hidden="true">✦</span>
+      <span>Wanna Know Something<span class="brand-dot">...</span></span>
+    </a>
+    <div class="topbar-actions">
+      <span class="connection-pill" id="connection-pill"><i></i><span id="connection-label">Demo mode</span></span>
+      <button class="icon-button" id="settings-button" aria-label="Open settings" title="Settings">⚙</button>
+    </div>
+  </header>
+
+  <main id="app" class="app-shell">
+    <section class="screen active" id="screen-home" data-screen="home">
+      <div class="home-grid">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="eyebrow-dot"></span> TWO PEOPLE · ONE ROOM · 500+ QUESTIONS</div>
+          <h1>Things get interesting<br><em>when you ask.</em></h1>
+          <p class="hero-subtitle">A tiny multiplayer game for the questions you’ve always wanted to ask — plus the answers you never expected.</p>
+          <div class="hero-actions">
+            <button class="primary-button hero-cta" id="create-room-button"><span>Create a room</span><b>↗</b></button>
+            <button class="secondary-button hero-secondary" id="join-room-button"><span>Join a room</span><b>⌘</b></button>
+          </div>
+          <div class="micro-note"><span>no accounts needed</span><span>•</span><span>2 players</span><span>•</span><span>made for late-night chats</span></div>
+        </div>
+
+        <div class="hero-stage" aria-label="Interactive preview">
+          <div class="question-window glass-card" id="hero-card">
+            <div class="window-bar">
+              <span class="window-lights"><i></i><i></i><i></i></span>
+              <span class="window-label">TONIGHT'S QUESTION</span>
+              <span class="window-index">01/50</span>
+            </div>
+            <div class="question-body">
+              <div class="tiny-badge">FAVORITES</div>
+              <h2>What song could instantly pull you back into a specific memory?</h2>
+              <div class="fake-answer">Type something honest<span class="caret"></span></div>
+              <div class="fake-submit"><span>Answer privately</span><span>↗</span></div>
+            </div>
+            <div class="stage-tag stage-tag-a">MIDNIGHT MODE ✦</div>
+            <div class="stage-tag stage-tag-b">YOU + 1</div>
+          </div>
+          <div class="float-note float-note-a">no awkward small talk</div>
+          <div class="float-note float-note-b">private answers ↑</div>
+        </div>
+      </div>
+
+      <div class="marquee" aria-hidden="true">
+        <div>ASK SOMETHING • FIND A MATCH • LAUGH A LITTLE • ASK SOMETHING • FIND A MATCH • LAUGH A LITTLE • </div>
+      </div>
+
+      <div class="feature-grid">
+        <article class="feature-card">
+          <span class="feature-no">01</span>
+          <h3>Ask better questions</h3>
+          <p>Favorites, memories, dreams, music, food, deep stuff, random stuff — all in one growing question bank.</p>
+        </article>
+        <article class="feature-card feature-card-tall">
+          <span class="feature-no">02</span>
+          <h3>Answer separately</h3>
+          <p>No peeking. Your answer stays private until both players have locked theirs in.</p>
+          <div class="mini-avatars"><span>A</span><span>B</span><b>↔</b></div>
+        </article>
+        <article class="feature-card">
+          <span class="feature-no">03</span>
+          <h3>Reveal the weird part</h3>
+          <p>See where you match, where you absolutely don’t, and which answer deserves a reaction.</p>
+        </article>
+      </div>
+      <div style="margin-top:30px;text-align:center"><a href="./privacy.html" style="color:#736a80;font:10px var(--mono);text-decoration:none;letter-spacing:.1em;text-transform:uppercase">privacy</a></div>
+    </section>
+
+    <section class="screen" id="screen-create" data-screen="create">
+      <div class="flow-shell narrow">
+        <button class="back-button" data-back="home">← Back</button>
+        <div class="section-kicker">START A SESSION</div>
+        <h2 class="screen-title">Make the room.</h2>
+        <p class="screen-subtitle">Pick your vibe. Send the code. The rest is just conversation.</p>
+
+        <div class="panel-grid">
+          <div class="glass-panel form-panel">
+            <label class="field-label" for="host-name">Your name</label>
+            <div class="input-wrap"><input id="host-name" maxlength="18" autocomplete="nickname" placeholder="e.g. Arham" /></div>
+
+            <div class="setup-row">
+              <div>
+                <label class="field-label" for="round-count">Questions</label>
+                <select id="round-count"><option value="10">10 questions</option><option value="20" selected>20 questions</option><option value="30">30 questions</option><option value="50">50 questions</option></select>
+              </div>
+              <div>
+                <label class="field-label" for="category-mode">Question mix</label>
+                <select id="category-mode"><option value="mixed" selected>Everything</option><option value="light">Light & fun</option><option value="deep">A little deeper</option><option value="random">Chaotic random</option></select>
+              </div>
+            </div>
+
+            <div class="toggle-row">
+              <div><strong>Allow skipping</strong><span>Both players can move on together.</span></div>
+              <button class="switch is-on" data-setting="allowSkip" aria-pressed="true"><i></i></button>
+            </div>
+            <div class="toggle-row">
+              <div><strong>Show reactions</strong><span>Let each answer get a little personality.</span></div>
+              <button class="switch is-on" data-setting="reactions" aria-pressed="true"><i></i></button>
+            </div>
+
+            <button class="primary-button full-button" id="create-confirm">Create room <b>↗</b></button>
+          </div>
+
+          <div class="preview-panel glass-panel">
+            <span class="tiny-badge">YOUR ROOM</span>
+            <div class="room-preview-code">??????</div>
+            <p>Your six-letter room code appears after you create the room.</p>
+            <div class="preview-divider"></div>
+            <div class="preview-list"><span><i>✦</i> 500+ questions</span><span><i>✦</i> private answers</span><span><i>✦</i> live reveal</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-join" data-screen="join">
+      <div class="flow-shell narrow compact-top">
+        <button class="back-button" data-back="home">← Back</button>
+        <div class="section-kicker">JOIN A SESSION</div>
+        <h2 class="screen-title">Bring your name.</h2>
+        <p class="screen-subtitle">Your friend should have a six-letter room code ready.</p>
+        <div class="glass-panel join-panel">
+          <label class="field-label" for="guest-name">Your name</label>
+          <div class="input-wrap"><input id="guest-name" maxlength="18" autocomplete="nickname" placeholder="e.g. Ayaan" /></div>
+          <label class="field-label" for="room-code">Room code</label>
+          <div class="room-code-input"><input id="room-code" maxlength="6" autocapitalize="characters" spellcheck="false" placeholder="A7K9Q2" /><button id="paste-code" title="Paste room code">Paste</button></div>
+          <button class="primary-button full-button" id="join-confirm">Join room <b>↗</b></button>
+          <div class="form-error" id="join-error" role="alert"></div>
+        </div>
+        <div class="tiny-help">Tip: room codes expire when the host ends a session.</div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-room" data-screen="room">
+      <div class="flow-shell room-flow">
+        <div class="room-head">
+          <div><div class="section-kicker">ROOM <span id="room-code-label">------</span></div><h2 class="screen-title">Almost there.</h2></div>
+          <button class="ghost-button" id="leave-room">Leave</button>
+        </div>
+        <div class="waiting-stage">
+          <div class="waiting-copy glass-panel">
+            <span class="tiny-badge">WAITING ROOM</span>
+            <h3 id="waiting-title">Waiting for someone...</h3>
+            <p id="waiting-subtitle">Send the room code. When they arrive, the questions begin.</p>
+            <div class="room-code-large" id="room-code-large">------</div>
+            <div class="room-code-actions"><button class="secondary-button" id="copy-room-code">Copy code</button><button class="secondary-button" id="share-room">Share</button></div>
+            <div class="presence-list"><div class="presence-card"><span class="avatar" id="host-avatar">A</span><div><strong id="host-name-room">Host</strong><span>ready</span></div><i>✓</i></div><div class="presence-card empty" id="guest-presence"><span class="avatar ghost-avatar">+</span><div><strong>Waiting for player 2</strong><span>share the code above</span></div><i class="pulse-dot"></i></div></div>
+            <div class="custom-question-row"><button class="ghost-button" id="custom-question-button">＋ Add a custom question</button></div>
+            <button class="primary-button full-button host-start hidden" id="host-start-button">Start the questions <b>↗</b></button>
+          </div>
+          <div class="room-side glass-panel">
+            <span class="tiny-badge">THE PLAN</span>
+            <div class="plan-item"><b>01</b><span>Answer honestly</span></div>
+            <div class="plan-item"><b>02</b><span>Keep it private</span></div>
+            <div class="plan-item"><b>03</b><span>Reveal together</span></div>
+            <div class="plan-item"><b>04</b><span>Laugh at the result</span></div>
+            <div class="side-note">Made for friends, crushes, teammates, classmates — basically anyone you want to know a little better.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-game" data-screen="game">
+      <div class="game-shell">
+        <div class="game-topline"><div><span class="tiny-badge" id="game-category">QUESTION</span><span class="game-count" id="game-count">1 / 20</span></div><div class="game-room" id="game-room-label">ROOM ------</div><button class="icon-button game-settings" id="game-settings-button">⚙</button></div>
+        <div class="progress-line"><i id="progress-line-fill"></i></div>
+        <div class="question-layout">
+          <div class="question-column">
+            <div class="question-meta"><span id="question-serial">Q01</span><span>answer privately</span></div>
+            <h2 id="question-text">Question loading...</h2>
+            <div class="answer-card glass-panel">
+              <textarea id="answer-input" maxlength="240" placeholder="Say the thing. Type it out..." aria-label="Your answer"></textarea>
+              <div class="answer-footer"><span id="char-count">0 / 240</span><button class="primary-button answer-submit" id="submit-answer">Lock it in <b>↗</b></button></div>
+            </div>
+            <div class="waiting-answer hidden" id="waiting-answer"><span class="spinner"></span><span>Your answer is locked. Waiting for the other person...</span></div>
+            <div class="game-shortcuts"><span><kbd>Enter</kbd> submit</span><span><kbd>Shift</kbd> + <kbd>Enter</kbd> new line</span><span id="skip-hint"><kbd>S</kbd> skip</span></div>
+          </div>
+          <aside class="game-sidebar glass-panel">
+            <span class="tiny-badge">ROUND</span>
+            <div class="big-round-number" id="big-round-number">01</div>
+            <div class="player-status"><div><span class="status-avatar" id="your-status-avatar">Y</span><span><strong id="your-status-name">You</strong><small id="your-status-label">thinking</small></span></div><i class="status-light active"></i></div>
+            <div class="player-status"><div><span class="status-avatar muted" id="other-status-avatar">?</span><span><strong id="other-status-name">Player 2</strong><small id="other-status-label">answering</small></span></div><i class="status-light"></i></div>
+            <div class="sidebar-divider"></div>
+            <button class="ghost-button full-button" id="skip-question">Skip question</button>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-reveal" data-screen="reveal">
+      <div class="reveal-shell">
+        <div class="reveal-header"><span class="tiny-badge" id="reveal-category">REVEAL</span><h2 id="reveal-title">Okay... this is interesting.</h2><p id="reveal-subtitle">You both answered. Time to see what happened.</p></div>
+        <div class="answers-grid">
+          <article class="answer-reveal-card left glass-panel"><div class="answer-who"><span class="status-avatar" id="reveal-avatar-1">A</span><div><strong id="reveal-name-1">Player 1</strong><span>answered</span></div></div><p id="reveal-answer-1">...</p></article>
+          <div class="versus-mark"><span>VS</span></div>
+          <article class="answer-reveal-card right glass-panel"><div class="answer-who"><span class="status-avatar" id="reveal-avatar-2">B</span><div><strong id="reveal-name-2">Player 2</strong><span>answered</span></div></div><p id="reveal-answer-2">...</p></article>
+        </div>
+        <div class="reaction-row" id="reaction-row"><span>reaction?</span><button data-reaction="❤️">❤️</button><button data-reaction="😂">😂</button><button data-reaction="😮">😮</button><button data-reaction="🔥">🔥</button><button data-reaction="🤝">🤝</button></div>
+        <div class="reveal-actions"><button class="secondary-button" id="favorite-answer">☆ Save this question</button><button class="primary-button" id="next-question">Next question <b>↗</b></button></div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-results" data-screen="results">
+      <div class="results-shell">
+        <div class="section-kicker">SESSION COMPLETE</div>
+        <h2 class="screen-title">That was a good conversation.</h2>
+        <p class="screen-subtitle">Here’s the tiny snapshot of what you two just learned.</p>
+        <div class="results-highlight glass-panel"><span>VIBE MATCH</span><strong id="result-score">78%</strong><small id="result-score-label">based on answer overlap and shared topics</small></div>
+        <div class="result-grid">
+          <article class="stat-card glass-panel"><span>SHARED INTERESTS</span><strong id="shared-count">—</strong><p id="shared-text">You kept landing on similar things.</p></article>
+          <article class="stat-card glass-panel"><span>DIFFERENT ANSWERS</span><strong id="different-count">—</strong><p id="different-text">A little contrast makes the game better.</p></article>
+          <article class="stat-card glass-panel wide"><span>SESSION NOTE</span><strong id="session-note">You actually answered the questions.</strong><p>That already counts as a good conversation.</p></article>
+        </div>
+        <div class="results-actions"><button class="secondary-button" id="share-results">Share result</button><button class="primary-button" id="play-again">Play again <b>↗</b></button></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="settings-modal" aria-hidden="true">
+    <div class="modal glass-panel large-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="modal-head"><div><span class="section-kicker">CONTROL ROOM</span><h2 id="settings-title">Your vibe settings.</h2></div><button class="icon-button" data-close-modal="settings-modal">×</button></div>
+      <div class="settings-sections">
+        <div class="settings-section"><h3>Visual</h3><div class="setting-grid"><div class="setting-item"><div><strong>Particles</strong><small>Floating pixel stars</small></div><button class="switch is-on" data-setting="particles"><i></i></button></div><div class="setting-item"><div><strong>Glow</strong><small>Soft neon accents</small></div><button class="switch is-on" data-setting="glow"><i></i></button></div><div class="setting-item"><div><strong>Animations</strong><small>Transitions & motion</small></div><button class="switch is-on" data-setting="animations"><i></i></button></div><div class="setting-item"><div><strong>Pixel details</strong><small>Retro UI texture</small></div><button class="switch is-on" data-setting="pixels"><i></i></button></div></div></div>
+        <div class="settings-section"><h3>Accessibility</h3><div class="setting-grid"><div class="setting-item"><div><strong>Reduce motion</strong><small>Prefer calmer movement</small></div><button class="switch" data-setting="reduceMotion"><i></i></button></div><div class="setting-item"><div><strong>Larger text</strong><small>Boost readable type</small></div><button class="switch" data-setting="largeText"><i></i></button></div><div class="setting-item"><div><strong>High contrast</strong><small>Sharper UI separation</small></div><button class="switch" data-setting="highContrast"><i></i></button></div><div class="setting-item"><div><strong>Sound effects</strong><small>Clicks, reveals, success</small></div><button class="switch is-on" data-setting="sound"><i></i></button></div></div></div>
+        <div class="settings-section"><h3>Appearance</h3><div class="theme-picker"><button class="theme-chip active" data-theme="midnight"><span></span><b>Midnight</b><small>default</small></button><button class="theme-chip" data-theme="lavender"><span></span><b>Lavender</b><small>soft</small></button><button class="theme-chip" data-theme="purple"><span></span><b>Purple</b><small>electric</small></button></div></div>
+        <div class="settings-section"><h3>About</h3><div class="about-block"><p><strong>Wanna Know Something...</strong> is built for two people who want better questions.</p><p class="muted">Realtime play needs Firebase configuration. The UI remains fully explorable in Demo Mode until you connect your own project.</p></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="custom-question-modal" aria-hidden="true">
+    <div class="modal glass-panel modal-small" role="dialog" aria-modal="true" aria-labelledby="custom-title">
+      <div class="modal-head"><div><span class="section-kicker">MAKE IT YOURS</span><h2 id="custom-title">Add a question.</h2></div><button class="icon-button" data-close-modal="custom-question-modal">×</button></div>
+      <label class="field-label" for="custom-question-input">Question</label>
+      <textarea class="custom-question-input" id="custom-question-input" maxlength="180" placeholder="Something you genuinely want to know..."></textarea>
+      <button class="primary-button full-button" id="save-custom-question">Add to room <b>↗</b></button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="toast-layer" aria-hidden="true"><div class="toast" id="toast"><span class="toast-icon">✦</span><span id="toast-text">Done</span></div></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
