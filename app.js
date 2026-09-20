@@ -19,7 +19,12 @@ import {
   runTransaction,
   arrayUnion,
   serverTimestamp,
-  deleteDoc
+  deleteDoc,
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  limit
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
 const DEFAULT_SETTINGS = {
@@ -41,6 +46,7 @@ const APP_STATE = {
   user: null,
   unsubscribeRoom: null,
   unsubscribeRound: null,
+  unsubscribeChat: null,
   room: null,
   roomCode: null,
   role: null,
@@ -51,6 +57,9 @@ const APP_STATE = {
   settings: { ...DEFAULT_SETTINGS },
   lastRenderedRoundId: null,
   lastRevealRoundId: null,
+  chatMessages: [],
+  chatHydrated: false,
+  chatUnread: 0,
   demoTimer: null
 };
 
@@ -201,6 +210,7 @@ function showScreen(name) {
     screen.classList.toggle('active', screen === target);
   });
 
+  updateChatAvailability(name);
   window.scrollTo({ top: 0, behavior: APP_STATE.settings.reduceMotion ? 'auto' : 'smooth' });
 }
 
@@ -283,6 +293,10 @@ function clearRealtimeSubscriptions() {
     APP_STATE.unsubscribeRound();
     APP_STATE.unsubscribeRound = null;
   }
+  if (APP_STATE.unsubscribeChat) {
+    APP_STATE.unsubscribeChat();
+    APP_STATE.unsubscribeChat = null;
+  }
 }
 
 function clearRoomState() {
@@ -299,6 +313,181 @@ function clearRoomState() {
   APP_STATE.currentReaction = null;
   APP_STATE.lastRenderedRoundId = null;
   APP_STATE.lastRevealRoundId = null;
+  APP_STATE.chatMessages = [];
+  APP_STATE.chatHydrated = false;
+  APP_STATE.chatUnread = 0;
+}
+
+
+function updateChatAvailability(screenName) {
+  const button = $('chat-button');
+  if (!button) return;
+
+  const canChat = Boolean(
+    APP_STATE.roomCode &&
+    APP_STATE.room &&
+    ['room', 'reveal', 'results'].includes(screenName)
+  );
+
+  button.classList.toggle('hidden', !canChat);
+  button.setAttribute('aria-hidden', String(!canChat));
+
+  if (!canChat && $('chat-modal')?.classList.contains('open')) {
+    closeModal('chat-modal');
+  }
+
+  const badge = $('chat-unread-badge');
+  if (badge) {
+    badge.textContent = APP_STATE.chatUnread > 9 ? '9+' : String(APP_STATE.chatUnread);
+    badge.classList.toggle('hidden', APP_STATE.chatUnread <= 0);
+  }
+}
+
+function formatChatTime(value) {
+  try {
+    const date = value?.toDate ? value.toDate() : new Date(value || Date.now());
+    return new Intl.DateTimeFormat(undefined, {
+      hour: 'numeric',
+      minute: '2-digit'
+    }).format(date);
+  } catch {
+    return '';
+  }
+}
+
+function renderChatMessages(messages = []) {
+  const list = $('chat-messages');
+  if (!list) return;
+
+  list.replaceChildren();
+
+  if (!messages.length) {
+    const empty = document.createElement('div');
+    empty.className = 'chat-empty';
+    empty.innerHTML = '<strong>It’s quiet here.</strong><span>Send the first message while you wait.</span>';
+    list.appendChild(empty);
+    return;
+  }
+
+  messages.forEach(message => {
+    const mine = message.uid === APP_STATE.user?.uid || message.uid === 'demo-host';
+    const bubble = document.createElement('article');
+    bubble.className = `chat-message ${mine ? 'mine' : 'theirs'}`;
+
+    const meta = document.createElement('div');
+    meta.className = 'chat-message-meta';
+
+    const name = document.createElement('strong');
+    name.textContent = mine ? 'You' : (message.name || 'Player');
+
+    const time = document.createElement('time');
+    time.textContent = formatChatTime(message.createdAt);
+
+    meta.append(name, time);
+
+    const text = document.createElement('p');
+    text.textContent = message.text || '';
+
+    bubble.append(meta, text);
+    list.appendChild(bubble);
+  });
+
+  requestAnimationFrame(() => {
+    list.scrollTop = list.scrollHeight;
+  });
+}
+
+function markChatRead() {
+  APP_STATE.chatUnread = 0;
+  const badge = $('chat-unread-badge');
+  if (badge) badge.classList.add('hidden');
+}
+
+function openChat() {
+  if (!APP_STATE.roomCode || !APP_STATE.room) return;
+  openModal('chat-modal');
+  markChatRead();
+  setTimeout(() => $('chat-input')?.focus(), 80);
+}
+
+async function sendChatMessage() {
+  const input = $('chat-input');
+  const text = String(input?.value || '').trim().slice(0, 500);
+  if (!text) {
+    input?.focus();
+    return;
+  }
+
+  if (!APP_STATE.roomCode || !APP_STATE.user || !APP_STATE.db) {
+    const message = {
+      id: `demo-chat-${Date.now()}`,
+      uid: 'demo-host',
+      name: APP_STATE.room?.hostName || getIdentity() || 'You',
+      text,
+      createdAt: new Date()
+    };
+    APP_STATE.chatMessages.push(message);
+    renderChatMessages(APP_STATE.chatMessages);
+    input.value = '';
+    return;
+  }
+
+  const button = $('send-chat');
+  setButtonBusy(button, true, 'Sending...');
+
+  try {
+    await addDoc(collection(APP_STATE.db, 'rooms', APP_STATE.roomCode, 'messages'), {
+      uid: APP_STATE.user.uid,
+      name: APP_STATE.role === 'host' ? (APP_STATE.room.hostName || 'Host') : (APP_STATE.room.guestName || 'Player 2'),
+      text,
+      createdAt: serverTimestamp()
+    });
+
+    input.value = '';
+    playTone('tap');
+  } catch (error) {
+    console.error('[WKS] chat send:', error);
+    toast(friendlyFirebaseError(error, 'Could not send that message.'), '×');
+  } finally {
+    setButtonBusy(button, false);
+    input?.focus();
+  }
+}
+
+function subscribeToChat(code) {
+  if (!APP_STATE.db || !code) return;
+
+  if (APP_STATE.unsubscribeChat) APP_STATE.unsubscribeChat();
+  APP_STATE.chatHydrated = false;
+  APP_STATE.chatUnread = 0;
+
+  const messagesRef = collection(APP_STATE.db, 'rooms', code, 'messages');
+  const messagesQuery = query(messagesRef, orderBy('createdAt', 'asc'), limit(100));
+
+  APP_STATE.unsubscribeChat = onSnapshot(
+    messagesQuery,
+    snapshot => {
+      const messages = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+      const added = snapshot.docChanges().filter(change => change.type === 'added');
+
+      if (APP_STATE.chatHydrated) {
+        const incomingCount = added.filter(change => change.doc.data().uid !== APP_STATE.user?.uid).length;
+        if (incomingCount && !$('chat-modal')?.classList.contains('open')) {
+          APP_STATE.chatUnread += incomingCount;
+          updateChatAvailability(document.querySelector('.screen.active')?.dataset.screen || '');
+          playTone('tap');
+        }
+      }
+
+      APP_STATE.chatMessages = messages;
+      renderChatMessages(messages);
+      APP_STATE.chatHydrated = true;
+    },
+    error => {
+      console.error('[WKS] chat listener:', error);
+      toast(friendlyFirebaseError(error, 'Could not load the room chat.'), '×');
+    }
+  );
 }
 
 function isFirebaseConfigured() {
@@ -327,7 +516,7 @@ function buildRoomSettings() {
   const reactions = qs('.switch[data-setting="reactions"]')[0]?.classList.contains('is-on') ?? true;
 
   return {
-    count: [10, 20, 30, 50].includes(roundCount) ? roundCount : 20,
+    count: [5, 10, 20, 30, 50].includes(roundCount) ? roundCount : 20,
     mode,
     allowSkip,
     reactions
@@ -351,6 +540,7 @@ function hydrateRoomUI(room) {
   if (roomCodeLabel) roomCodeLabel.textContent = room.code || '------';
   if (roomCodeLarge) roomCodeLarge.textContent = room.code || '------';
   if (gameRoomLabel) gameRoomLabel.textContent = `ROOM ${room.code || '------'}`;
+  if ($('chat-room-label')) $('chat-room-label').textContent = `ROOM ${room.code || '------'}`;
   if (hostNameRoom) hostNameRoom.textContent = room.hostName || 'Host';
   if (hostAvatar) hostAvatar.textContent = (room.hostName || 'H').charAt(0).toUpperCase();
   if (waitingTitle) waitingTitle.textContent = room.guestId ? 'They’re here.' : 'Waiting for someone...';
@@ -595,6 +785,8 @@ async function subscribeToRoom(code) {
 
   if (APP_STATE.unsubscribeRoom) APP_STATE.unsubscribeRoom();
   if (APP_STATE.unsubscribeRound) APP_STATE.unsubscribeRound();
+
+  subscribeToChat(code);
 
   APP_STATE.unsubscribeRoom = onSnapshot(
     doc(APP_STATE.db, 'rooms', code),
@@ -1113,6 +1305,9 @@ function createDemoRoom() {
   saveIdentity(name);
   saveSessionCode(code);
   hydrateRoomUI(APP_STATE.room);
+  APP_STATE.chatMessages = [];
+  APP_STATE.chatHydrated = true;
+  renderChatMessages([]);
   showScreen('room');
   toast(`Demo room ${code} created.`, '✦');
 
@@ -1257,6 +1452,9 @@ function joinDemoRoom() {
   };
 
   hydrateRoomUI(APP_STATE.room);
+  APP_STATE.chatMessages = [];
+  APP_STATE.chatHydrated = true;
+  renderChatMessages([]);
   showScreen('room');
   toast('Joined the demo room. ✦');
 
@@ -1528,6 +1726,20 @@ function wireUI() {
       toast('Question saved.', '★');
     } else {
       toast('Already saved.', '★');
+    }
+  });
+
+  // Chat
+  on('chat-button', 'click', openChat);
+  on('chat-form', 'submit', event => {
+    event.preventDefault();
+    sendChatMessage();
+  });
+  on('chat-input', 'keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      event.preventDefault();
+      sendChatMessage();
     }
   });
 
