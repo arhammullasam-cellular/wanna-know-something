@@ -1,4 +1,4 @@
-const CACHE = 'wks-shell-v1';
+const CACHE = 'wks-shell-v2';
 const ASSETS = ['./','./index.html','./styles.css','./app.js','./questions.js','./firebase-config.js','./manifest.json','./assets/favicon.svg','./assets/icon-192.svg','./assets/icon-512.svg','./privacy.html','./404.html'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
